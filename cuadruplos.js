@@ -1,18 +1,28 @@
 const inputEcuacion = document.getElementById('ecuacion');
 const seccionVars = document.getElementById('seccionVariables');
 const contenedorVars = document.getElementById('contenedorVariables');
-const btnProcesar = document.getElementById('btnProcesar');
 const contenedorResultado = document.getElementById('resultadoContainer');
-
+const alertaContainer = document.getElementById('alertaContainer');
 
 const btnTriplos = document.getElementById('btnTriplos');
 const btnCuadruplos = document.getElementById('btnCuadruplos');
 const btnAmbas = document.getElementById('btnAmbas');
+const btnLimpiar = document.getElementById('btnLimpiar');
 
 const valoresPorDefecto = {
-    a: 4, b: 2, c: 8, d: 4, e: 3, f: 3, g: 2, 
-    x: 8, y: 2, m: 6, n: 3, p: 4, q: 5, r: 3, k: 5, o: 3
+    a: 0, b: 0, c: 0, d: 0, e: 0, f: 0, g: 0, 
+    x: 0, y: 0, m: 0, n: 0, p: 0, q: 0, r: 0, k: 0, o: 0
 };
+
+function mostrarAlerta(mensaje, tipo = 'warning') {
+    if (!alertaContainer) return;
+    alertaContainer.innerHTML = `
+        <div class="alert alert-${tipo} alert-dismissible fade show shadow-sm" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i> ${mensaje}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `;
+}
 
 function obtenerVariables(expresion) {
     const tokens = expresion.match(/[a-zA-Z]+/g) || [];
@@ -153,19 +163,15 @@ function generarCuadruplosJerarquia(expr, varDestino, valores) {
     return cuadruplos;
 }
 
-// Generador de Triplos (Basado en la misma lógica, usando referencias (0), (1)...)
 function generarTriplosJerarquia(expr, varDestino, valores) {
     const cuads = generarCuadruplosJerarquia(expr, varDestino, valores);
     const triplos = [];
-    
-    // Mapeador de temporales a índices de triplos (ej: t1 -> (0))
     const mapaTriplos = {};
 
     cuads.forEach((c, idx) => {
         let op1 = c.op1;
         let op2 = c.op2;
 
-        // Reemplazar temporales anteriores por referencias de triplos (0), (1)...
         Object.keys(mapaTriplos).forEach(tKey => {
             if (op1.includes(tKey)) {
                 op1 = op1.replace(new RegExp(tKey, 'g'), `(${mapaTriplos[tKey]})`);
@@ -176,17 +182,15 @@ function generarTriplosJerarquia(expr, varDestino, valores) {
         });
 
         if (c.op === '=') {
-            // El último paso de asignación en triplos suele apuntar al último triplo generado
             const ultimoIndice = triplos.length - 1;
             triplos.push({
                 op: '=',
                 op1: `(${ultimoIndice})`,
                 op2: '—',
-                res: c.res.split(' ')[0] // solo la variable destino ej: z (7) -> z
+                res: c.res.split(' ')[0]
             });
         } else {
             const actualIndex = triplos.length;
-            // Extraer nombre del temporal actual (ej: t1)
             const temporalActual = `t${idx + 1}`;
             mapaTriplos[temporalActual] = actualIndex;
 
@@ -202,7 +206,6 @@ function generarTriplosJerarquia(expr, varDestino, valores) {
     return triplos;
 }
 
-// Funciones para pintar las tablas en HTML
 function renderTablaCuadruplos(cuadruplos) {
     let html = `
         <h4 class="text-success fw-bold mt-4">Tabla de Cuádruplos</h4>
@@ -261,18 +264,31 @@ function renderTablaTriplos(triplos) {
     return html;
 }
 
-// Manejadores de eventos para los botones
 function procesarAccion(tipo) {
     const exprRaw = inputEcuacion.value.trim();
     contenedorResultado.innerHTML = '';
+    if (alertaContainer) alertaContainer.innerHTML = '';
 
     if (!exprRaw) {
-        alert('Por favor, ingresa una ecuación.');
+        mostrarAlerta('Por favor, introduce una ecuación válida antes de continuar.', 'danger');
         return;
     }
 
-    const valores = getEntornoValoresSeguro();
+    const inputsVars = document.querySelectorAll('.var-input');
+    let hayCamposVacios = false;
     
+    inputsVars.forEach(input => {
+        if (input.value.trim() === '') {
+            hayCamposVacios = true;
+        }
+    });
+
+    if (hayCamposVacios) {
+        mostrarAlerta('Por favor, asigna un valor a todas las variables antes de generar el código.', 'danger');
+        return;
+    }
+
+    const valores = obtenerEntornoValores();
     let varDestino = 'z';
     let expresionRHS = exprRaw;
 
@@ -297,15 +313,14 @@ function procesarAccion(tipo) {
     contenedorResultado.innerHTML = contenidoHTML;
 }
 
-function getEntornoValoresSeguro() {
-    const envValues = {};
-    document.querySelectorAll('.var-input').forEach(input => {
-        const vName = input.getAttribute('data-var');
-        envValues[vName] = parseFloat(input.value) || 0;
-    });
-    return envValues;
+function limpiarTodo() {
+    inputEcuacion.value = '';
+    contenedorResultado.innerHTML = '';
+    if (alertaContainer) alertaContainer.innerHTML = '';
+    actualizarInputsVariables();
 }
 
 btnTriplos.addEventListener('click', () => procesarAccion('triplos'));
 btnCuadruplos.addEventListener('click', () => procesarAccion('cuadruplos'));
 btnAmbas.addEventListener('click', () => procesarAccion('ambas'));
+btnLimpiar.addEventListener('click', limpiarTodo);
